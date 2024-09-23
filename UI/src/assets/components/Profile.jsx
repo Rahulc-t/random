@@ -6,7 +6,7 @@ const Profile = () => {
     username: '',
     name: '',
     email: '',
-    badges: 0
+    badges: 0,
   });
   const [games, setGames] = useState([]); // Store purchased games
   const [loading, setLoading] = useState(true);
@@ -23,13 +23,18 @@ const Profile = () => {
         });
         const data = await response.json();
 
-        // Set the user details and games
+        // Remove duplicate games based on gameId
+        const uniqueGames = Array.from(
+          new Map(data.games.map((game) => [game.gameId, game])).values()
+        );
+
+        // Set the user details and unique games
         setUserDetails(data.user); // Data returned by the backend for user details
-        setGames(data.games); // Data returned by the backend for games
+        setGames(uniqueGames); // Filtered unique games
 
         setLoading(false);
       } catch (err) {
-        console.error("Error fetching profile data", err);
+        console.error('Error fetching profile data', err);
         setLoading(false);
       }
     };
@@ -62,13 +67,13 @@ const Profile = () => {
       {/* My Games Section */}
       <div className="bg-gray-800 p-6 rounded-md shadow-lg mb-8">
         <h2 className="text-lg font-semibold mb-4">My Games</h2>
-        <div className="flex flex-col space-y-4"> {/* Changed to flex-col to stack games vertically */}
+        <div className="flex flex-col space-y-4"> {/* Stacked games vertically */}
           {games.length > 0 ? (
             games.map((game, index) => (
               <div key={index} className="flex justify-between items-center bg-gray-700 p-4 rounded-md">
                 <div className="flex items-center">
                   <img
-                    src={game.image || "https://via.placeholder.com/80"} // Replace with game image URL
+                    src={game.imageurl || "https://via.placeholder.com/80"} // Display actual game image
                     alt={game.gameName}
                     className="w-16 h-16 rounded-md"
                   />

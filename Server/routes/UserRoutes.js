@@ -66,15 +66,18 @@ router.get("/profile", verifyToken, async (req, res) => {
 
 
 router.post('/add',verifyToken, async (req, res) => {
-  const { gameName, gamePrice, transactionId } = req.body;
+  const {gameId, gameName, gamePrice, transactionId,imageurl,gameDescription } = req.body;
   const Email=req.email;
 
   try {
     const transaction = new Transaction({
+      gameId,
       gameName,
       gamePrice,
       userEmail:Email,
-      transactionId
+      transactionId,
+      imageurl,
+      gameDescription
     });
 
     await transaction.save();
@@ -92,9 +95,9 @@ router.get('/checkPurchase/:id', verifyToken, async (req, res) => {
 
   try {
     console.log("hi")
-    const data=await Games.findOne({game_Id:gameId});
+    const data=await Transaction.findOne({gameId:gameId});
     console.log(data)
-    const gameName=data.game_name;
+    const gameName=data.gameName;
     console.log(gameName)
     // Check if the user has already bought the game
     const transaction = await Transaction.findOne({ userEmail, gameName });
