@@ -1,37 +1,39 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ethers } from 'ethers';
-// import { GameModuleGameStore } from "../../scdata/deployed_addresses.json"; // Import deployed addresses
-// import { abi } from '../../scdata/GameStore.json'; // Import the ABI file for GameStore
+import axios from 'axios'; // Used to upload to Pinata
+import { GameModuleGameStore } from "../../scdata/deployed_addresses.json";
+import { abi } from '../../scdata/GameStore.json';
 
 const AddGame = () => {
     const navigate = useNavigate();
     const [formData, setFormData] = useState({
         game_name: '',
-        game_Id: '',
         game_studio: '',
         game_price: '',
-        game_description: ''
+        game_description: '',
+        category: '', // Added field for game category
+        image_url: '' // For the image URL from Pinata
     });
 
     const [account, setAccount] = useState('');
     const [contract, setContract] = useState(null);
     const [error, setError] = useState('');
+    const [imageFile, setImageFile] = useState(null); // To handle image file upload
 
     useEffect(() => {
-        // Initialize ethers and contract when the component mounts
+        // Initialize ethers and contract
         const initializeEthers = async () => {
             if (window.ethereum) {
                 try {
                     const provider = new ethers.BrowserProvider(window.ethereum);
-                    const signer = await provider.getSigner(); // Ensure signer is fetched correctly
+                    const signer = await provider.getSigner();
 
-                    // Create a contract instance with the signer
                     const instance = new ethers.Contract(GameModuleGameStore, abi, signer);
 
                     const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
                     setAccount(accounts[0]);
-                    setContract(instance); // Contract with signer
+                    setContract(instance);
                 } catch (err) {
                     console.log(err);
                     setError('Failed to load ethers or contract');
@@ -49,51 +51,61 @@ const AddGame = () => {
         setFormData({ ...formData, [name]: value });
     };
 
+    const handleImageChange = (e) => {
+        setImageFile(e.target.files[0]);
+    };
+
+    const uploadToPinata = async () => {
+        const data = new FormData();
+        data.append('file', imageFile);
+
+        try {
+            const res = await axios.post('https://api.pinata.cloud/pinning/pinFileToIPFS', data, {
+                headers: {
+                    'Content-Type': 'multipart/form-data',
+                    pinata_api_key: "bdb88602028f9d51588e",
+                    pinata_secret_api_key: "5447ba2757388cb504d8b8588628fd1b56b36484f5a1274f58130f0c39b2b802"
+                }
+            });
+            const imageUrl = `https://gateway.pinata.cloud/ipfs/${res.data.IpfsHash}`;
+            return imageUrl;
+        } catch (error) {
+            console.log('Error uploading image: ', error);
+            throw new Error('Image upload failed');
+        }
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
 
         try {
-            // First, add the game to the backend
-            const response = await fetch('http://localhost:5000/admin/addgame', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(formData),
+            // Upload the image to Pinata
+            const imageUrl = await uploadToPinata();
+
+            // Add the game to the blockchain
+            const tx = await contract.addGame(
+                formData.game_name,
+                formData.game_studio,
+                formData.game_description,
+                formData.game_price, // Send price in Wei
+                imageUrl, // Use the image URL from Pinata
+                formData.category, // Include the game category in the transaction
+            );
+
+            await tx.wait(); // Wait for transaction confirmation
+            alert('Game added to blockchain successfully');
+
+            // Clear the form data
+            setFormData({
+                game_name: '',
+                game_studio: '',
+                game_price: '',
+                game_description: '',
+                category: '', // Reset the category field
+                image_url: ''
             });
 
-            if (response.ok) {
-                alert('Game added to the backend successfully');
-
-                // Convert game price to wei
-                // const gamePriceWei = ethers.utils.parseEther(formData.game_price); // Convert Ether to Wei
-
-                // If adding to the backend is successful, add the game to the blockchain
-                const tx = await contract.addGame(
-                    formData.game_name,
-                    formData.game_studio,
-                    formData.game_description,
-                    // gamePriceWei // Send price in Wei
-                    formData.game_price
-                );
-
-                await tx.wait(); // Wait for transaction confirmation
-                alert('Game added to blockchain successfully');
-
-                // Clear the form data after successful submission
-                setFormData({
-                    game_name: '',
-                    game_Id: '',
-                    game_studio: '',
-                    game_price: '',
-                    game_description: ''
-                });
-
-                navigate("/admin");
-            } else {
-                const error = await response.json();
-                alert(`Error adding game to backend: ${error.message}`);
-            }
+            navigate("/admin");
         } catch (err) {
             console.log(err);
             alert('Error adding game to blockchain');
@@ -147,19 +159,6 @@ const AddGame = () => {
                 </div>
 
                 <div className="mb-4">
-                    <label htmlFor="game_Id" className="block text-sm mb-2">Game ID</label>
-                    <input
-                        type="text"
-                        id="game_Id"
-                        name="game_Id"
-                        value={formData.game_Id}
-                        onChange={handleChange}
-                        className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none"
-                        required
-                    />
-                </div>
-
-                <div className="mb-4">
                     <label htmlFor="game_studio" className="block text-sm mb-2">Game Studio</label>
                     <input
                         type="text"
@@ -192,6 +191,37 @@ const AddGame = () => {
                         name="game_description"
                         value={formData.game_description}
                         onChange={handleChange}
+                        className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none"
+                        required
+                    />
+                </div>
+
+                <div className="mb-4">
+                    <label htmlFor="category" className="block text-sm mb-2">Category</label>
+                    <select
+                        id="category"
+                        name="category"
+                        value={formData.category}
+                        onChange={handleChange}
+                        className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none"
+                        required
+                    >
+                        <option value="">Select Category</option>
+                        <option value="racing">Racing</option>
+                        <option value="war">War</option>
+                        <option value="strategy">Strategy</option>
+                        <option value="role-playing">Role-Playing</option>
+                        <option value="others">Others</option>
+                    </select>
+                </div>
+
+                <div className="mb-4">
+                    <label htmlFor="image_url" className="block text-sm mb-2">Upload Image</label>
+                    <input
+                        type="file"
+                        id="image_url"
+                        name="image_url"
+                        onChange={handleImageChange}
                         className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none"
                         required
                     />

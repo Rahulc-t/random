@@ -1,4 +1,7 @@
 import React, { useEffect, useState } from 'react';
+import { ethers } from 'ethers';
+import { GameModuleGameStore } from "../../scdata/deployed_addresses.json"; // Import contract address
+import { abi } from '../../scdata/GameStore.json'; // Import contract ABI
 
 const Transactions = () => {
   const [transactions, setTransactions] = useState([]);
@@ -7,26 +10,35 @@ const Transactions = () => {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    // Fetch transactions from the server
+    // Fetch transactions from the smart contract
     const fetchTransactions = async () => {
       try {
-        const response = await fetch('http://localhost:5000/user/transaction', {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `${localStorage.getItem('token')}`, // Use your token mechanism
-          },
-        });
+        // Connect to the contract using ethers.js
+        if (window.ethereum) {
+          // Use a provider for read-only operations (view functions)
+          const provider = new ethers.BrowserProvider(window.ethereum);
+          const contract = new ethers.Contract(GameModuleGameStore, abi, provider);
 
-        if (response.ok) {
-          const data = await response.json();
-          setTransactions(data);
+          // Call the smart contract function to get all transactions
+          const transactionsFromContract = await contract.getAllTransactions();
+          console.log(transactionsFromContract)
+
+          // Process transactions if necessary (depending on how the contract returns the data)
+          const formattedTransactions = transactionsFromContract.map((tx) => ({
+            transactionId: tx.transactionId.toString(),
+            gameName: tx.gameName,
+            gamePrice: ethers.formatUnits(tx.gamePrice, 'ether'), // Convert price from wei to ether
+            userEmail: tx.userEmail,
+            createdAt: new Date(tx.createdAt * 1000), // Assuming createdAt is in UNIX timestamp
+          }));
+
+          setTransactions(formattedTransactions);
         } else {
-          const error = await response.json();
-          setError(error.message);
+          setError('MetaMask not detected');
         }
       } catch (err) {
-        setError('Error fetching transactions');
+        setError('Error fetching transactions from the blockchain');
+        console.error(err);
       }
     };
 
@@ -43,6 +55,8 @@ const Transactions = () => {
 
   return (
     <div className="min-h-screen bg-[#1b2838] py-12 flex flex-col items-center">
+                    <a href="/admin"><button className='bg-red-400 mt-6 mb-6 p-2 rounded-lg'>Home</button></a>
+
       <h1 className="text-5xl font-extrabold text-white mb-12">Transactions</h1>
       
       {error && <p className="text-red-500 text-center mb-6">{error}</p>}
@@ -63,9 +77,9 @@ const Transactions = () => {
               <tr key={transaction.transactionId} className="bg-gray-700 border-b border-gray-600">
                 <td className="p-4">{transaction.transactionId}</td>
                 <td className="p-4">{transaction.gameName}</td>
-                <td className="p-4">${transaction.gamePrice}</td>
+                <td className="p-4">{transaction.gamePrice} ETH</td>
                 <td className="p-4">{transaction.userEmail}</td>
-                <td className="p-4">{new Date(transaction.createdAt).toLocaleDateString()}</td>
+                <td className="p-4">{transaction.createdAt.toLocaleDateString()}</td>
               </tr>
             ))}
           </tbody>

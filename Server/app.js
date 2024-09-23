@@ -24,7 +24,7 @@ app.use('/admin', adminRouter);
 app.use("/auth",authRouter)
 
 // Connect to MongoDB using environment variable
-mongoose.connect("mongodb://localhost:27017/steam_clone2")
+mongoose.connect("mongodb://localhost:27017/steam_clone3")
 .then(() => {
   console.log("Connected to database");
 })

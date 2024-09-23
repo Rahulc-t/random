@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { ethers } from 'ethers';
-// import { GameModuleGameStore } from '../../scdata/deployed_addresses.json';
-// import { abi } from '../../scdata/GameStore.json';
+ import { GameModuleGameStore } from '../../scdata/deployed_addresses.json';
+ import { abi } from '../../scdata/GameStore.json';
 import Footer from '../components/Footer';
 
 const ViewGame = () => {
@@ -13,116 +13,79 @@ const ViewGame = () => {
   const [contract, setContract] = useState(null);
   const [hasPurchased, setHasPurchased] = useState(false); // State to track purchase status
 
+  // Function to fetch the game details using the contract
+  const fetchGameFromBlockchain = async () => {
+    try {
+      // Assuming MetaMask is already connected and ethers.js is initialized
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+
+      // Replace with your deployed contract's address and ABI
+      // const gameStoreAddress = 'YOUR_GAME_STORE_CONTRACT_ADDRESS';
+      // const gameStoreABI = 'YOUR_GAME_STORE_ABI';
+
+      const contractInstance = new ethers.Contract(GameModuleGameStore, abi, signer);
+      setContract(contractInstance);
+
+      const gameData = await contractInstance.getGame(id); // Fetch the game from blockchain
+      setGame(gameData);
+    } catch (err) {
+      console.error('Error fetching game from blockchain:', err);
+      setError('Error fetching game details from blockchain');
+    }
+  };
+
   useEffect(() => {
-    // Fetch the game data by ID
-    const fetchGame = async () => {
-      try {
-        const response = await fetch(`http://localhost:5000/admin/editsgame/${id}`, {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `${localStorage.getItem('token')}`, // Adjust as necessary
-          },
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          setGame(data);
-        } else {
-          const error = await response.json();
-          setError(error.message);
-        }
-      } catch (err) {
-        setError('Error fetching game details');
-      }
-    };
-
-    fetchGame();
+    // Fetch the game data using the blockchain contract
+    fetchGameFromBlockchain();
   }, [id]);
 
-  // Check if the user has already purchased the game
-  // const checkPurchaseStatus = async () => {
-  //   try {
-  //     const response = await fetch(`http://localhost:5000/user/checkPurchase/${id}`, {
-  //       method: 'GET',
-  //       headers: {
-  //         'Content-Type': 'application/json',
-  //         'Authorization': `${localStorage.getItem('token')}`,
-  //       },
-  //     });
+  // MetaMask connection and initialize ethers
+  const connectMetaMask = async () => {
+    if (window.ethereum) {
+      try {
+        const provider = new ethers.BrowserProvider(window.ethereum);
+        const signer = await provider.getSigner();
+        const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+        setAccount(accounts[0]);
 
-  //     const data = await response.json();
-  //     if (data.hasPurchased) {
-  //       setHasPurchased(true);
-  //     }
-  //   } catch (err) {
-  //     console.error('Error checking purchase status', err);
-  //     setError('Error checking purchase status');
-  //   }
-  // };
+        // Initialize the contract instance
+        // const gameStoreAddress = 'YOU';
+        // const gameStoreABI = 'YOUR_GAME_STORE_ABI';
 
-  // Call the function to check purchase status once MetaMask is connected
-  // useEffect(() => {
-  //   if (account) {
-  //     checkPurchaseStatus();
-  //   }
-  // }, [account]);
+        const contractInstance = new ethers.Contract(GameModuleGameStore, abi, signer);
+        setContract(contractInstance);
+      } catch (err) {
+        console.error('Error connecting to MetaMask:', err);
+        setError('Failed to connect to MetaMask');
+      }
+    } else {
+      setError('MetaMask not detected. Please install MetaMask extension.');
+    }
+  };
 
-  // // MetaMask connection and initialize ethers
-  // const connectMetaMask = async () => {
-  //   if (window.ethereum) {
-  //     try {
-  //       const provider = new ethers.BrowserProvider(window.ethereum);
-  //       const signer = await provider.getSigner();
-  //       const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-  //       setAccount(accounts[0]);
+  // Function to buy the game using MetaMask and smart contract
+  const buyGame = async () => {
+    if (!contract || !account) {
+      setError('Please connect to MetaMask first');
+      return;
+    }
 
-  //       const instance = new ethers.Contract(GameModuleGameStore, abi, signer);
-  //       setContract(instance);
-  //     } catch (err) {
-  //       console.error('Error connecting to MetaMask:', err);
-  //       setError('Failed to connect to MetaMask');
-  //     }
-  //   } else {
-  //     setError('MetaMask not detected. Please install MetaMask extension.');
-  //   }
-  // };
-
-  // Function to buy game and save transaction
-  // // const buyGame = async () => {
-  // //   if (!contract || !account) {
-  // //     setError('Please connect to MetaMask first');
-  // //     return;
-  // //   }
-
-  // //   try {
-  // //     // Perform the blockchain transaction
-  // //     const tx = await contract.buyGame(id, { value: game.game_price });
-  // //     await tx.wait(); // Wait for transaction confirmation
-
-  // //     const transactionId = tx.hash; // Get the transaction ID from the blockchain
-
-  // //     // Call backend API to save transaction details
-  // //     await fetch('http://localhost:5000/user/add', {
-  // //       method: 'POST',
-  // //       headers: {
-  // //         'Content-Type': 'application/json',
-  // //         'Authorization': localStorage.getItem('token'), // Pass the token for authentication
-  // //       },
-  // //       body: JSON.stringify({
-  // //         gameName: game.game_name,
-  // //         gamePrice: game.game_price,
-  // //         transactionId: transactionId, // Store transaction hash from blockchain
-  // //       }),
-  // //     });
-
-  //     alert('Game purchased successfully!');
-  //     setHasPurchased(true); // Update state to reflect the purchase
-  //   } catch (err) {
-  //     console.error('Error purchasing game:', err);
-  //     setError('Error purchasing game');
-  //   }
-  // };
+    try {
+      const gamePrice = await contract.getGame(id).then(game => game[3]);
+      console.log(gamePrice)
+      // Perform the blockchain transaction to buy the game
+      const tx = await contract.buyGame(id ,{
+        value:gamePrice
+      });
+      await tx.wait(); // Wait for transaction confirmation
+      alert('Game purchased successfully!');
+      setHasPurchased(true); // Update state to reflect the purchase
+    } catch (err) {
+      console.error('Error purchasing game:', err);
+      setError('Error purchasing game');
+    }
+  };
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gray-900 py-10 px-6">
@@ -134,24 +97,22 @@ const ViewGame = () => {
         <div className="bg-gray-800 p-8 rounded-lg shadow-lg max-w-4xl w-full flex flex-col items-center">
           {/* Game Image */}
           <img
-            src={game.image} // Assuming game.image holds the URL to the game image
-            alt={game.game_name}
+            src={game.imageUrl} // Assuming game.image holds the URL to the game image
+            alt={game.name}
             className="w-full h-64 object-cover rounded-lg mb-8"
           />
-          
+
           {/* Game Information */}
-          <h2 className="text-3xl font-bold mb-4 text-white">{game.game_name}</h2>
-          <p className="text-lg text-gray-400 mb-4">{game.game_description}</p>
-          <p className="text-xl font-semibold text-white mb-4">Price: {game.game_price} ETH</p>
-          <p className="text-lg text-gray-400 mb-6">Studio: {game.game_studio}</p>
+          <h2 className="text-3xl font-bold mb-4 text-white">{game.gameName}</h2>
+          <p className="text-lg text-gray-400 mb-4">{game.gameDescription}</p>
+          <p className="text-xl font-semibold text-white mb-4">Price: {parseFloat(game.gamePrice)} ETH</p>
+          <p className="text-lg text-gray-400 mb-6">Studio: {game.gameStudio}</p>
 
           {account ? (
             <div className="w-full">
               <p className="text-green-400 mb-4">Connected Account: {account}</p>
               {hasPurchased ? (
-                <button
-                  className="w-full bg-blue-600 text-white py-3 rounded-md hover:bg-blue-700 transition duration-300"
-                >
+                <button className="w-full bg-blue-600 text-white py-3 rounded-md hover:bg-blue-700 transition duration-300">
                   Play Game
                 </button>
               ) : (
@@ -171,16 +132,12 @@ const ViewGame = () => {
               Connect to MetaMask
             </button>
           )}
-          
         </div>
-        
       ) : (
         <p className="text-center text-white">Loading game details...</p>
       )}
-
     </div>
-
-
   );
 };
+
 export default ViewGame;
